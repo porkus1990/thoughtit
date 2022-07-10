@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+concurrency:
+  group: thought-it-${{ github.head_ref }}
+  cancel-in-progress: true
+  
+env:
+  NODE_OPTIONS: "--max-old-space-size=8192"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3.0.0
+        with:
+          node-version: '16.15.0'
+      
+      - name: 💿 Cache
+        id: cache-dep
+        uses: actions/cache@v2
+        with:
+          path: |
+            thought-it/node_modules
+            */*/node_modules
+          key: ${{ runner.dm-jobs }}-thought-it-${{ hashFiles('**/package.json') }}
+
+      - name: init
+        if: steps.cache-dep.outputs.cache-hit != 'true'
+        run: |
+          cd thought-it
+          yarn install
+
+      - name: test backend
+        run: |
+          cd thought-it
+          yarn rw test api --no-watch --ci --outputFile=test_result.json --json
+
+      - name: test frontend
+        run: |
+          cd thought-it
+          yarn rw test web --no-watch --ci --outputFile=test_result.json --json
+
+      - name: lint
+        if: always()
+        run: |
+          cd dm-jobs
+          yarn rw lint
